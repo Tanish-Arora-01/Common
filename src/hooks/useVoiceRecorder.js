@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
@@ -30,8 +30,16 @@ export const useVoiceRecorder = () => {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      // 1. Stop the media recorder
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+
+      // 2. Stop all hardware tracks (turns off the red mic icon)
+      if (mediaRecorderRef.current.stream) {
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
 
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, {
@@ -41,6 +49,17 @@ export const useVoiceRecorder = () => {
       };
     }
   };
+
+  // 3. Ensure tracks are stopped if the component unmounts while recording
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current?.stream) {
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
+    };
+  }, []);
 
   const transcribeAudio = async (audioBlob) => {
     setIsTranscribing(true);
