@@ -4,9 +4,27 @@ const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 export const useVoiceRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  // Timer to count the duration of the recording
+  useEffect(() => {
+    if (isRecording && !isPaused) {
+      timerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRecording, isPaused]);
 
   const startRecording = async () => {
     try {
@@ -14,6 +32,8 @@ export const useVoiceRecorder = () => {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      setRecordingDuration(0);
+      setIsPaused(false);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -33,6 +53,8 @@ export const useVoiceRecorder = () => {
       // 1. Stop the media recorder
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setIsPaused(false);
+      if (timerRef.current) clearInterval(timerRef.current);
 
       // 2. Stop all hardware tracks (turns off the red mic icon)
       if (mediaRecorderRef.current.stream) {
@@ -47,6 +69,41 @@ export const useVoiceRecorder = () => {
         });
         return audioBlob;
       };
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording && !isPaused) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isRecording && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      // Clear the onstop handler so we don't process the blob
+      mediaRecorderRef.current.onstop = null;
+      
+      // Stop the hardware tracks immediately
+      if (mediaRecorderRef.current.stream) {
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
+      
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      setRecordingDuration(0);
+      audioChunksRef.current = [];
+      if (timerRef.current) clearInterval(timerRef.current);
     }
   };
 
@@ -125,9 +182,14 @@ export const useVoiceRecorder = () => {
 
   return {
     isRecording,
+    isPaused,
     isTranscribing,
+    recordingDuration,
     startRecording,
     stopRecording,
+    pauseRecording,
+    resumeRecording,
+    cancelRecording,
     recordAndTranscribe,
     transcribeAudio,
     audioChunksRef,

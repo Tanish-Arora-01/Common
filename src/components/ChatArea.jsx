@@ -14,6 +14,8 @@ import {
   ShieldAlert,
   Info,
   Square,
+  Play,
+  Pause,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getMessages, sendMessage as apiSend, sendAudioMessage } from "../api";
@@ -48,9 +50,14 @@ export default function ChatArea({
   const [blockedReason, setBlockedReason] = useState(null);
   const {
     isRecording,
+    isPaused,
     isTranscribing,
+    recordingDuration,
     startRecording,
     stopRecording,
+    pauseRecording,
+    resumeRecording,
+    cancelRecording,
     transcribeAudio,
     audioChunksRef,
   } = useVoiceRecorder();
@@ -522,49 +529,105 @@ export default function ChatArea({
       {/* Input Area */}
       <div className="px-5 pb-4 pt-1">
         <div className="flex items-center gap-3 bg-[#f0f1f4] rounded-2xl px-4 py-3">
-          <button className="text-text-muted hover:text-primary transition-colors cursor-pointer">
-            <Paperclip size={20} strokeWidth={1.7} />
-          </button>
-          <input
-            type="text"
-            placeholder="Type a message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            className="flex-1 text-[13px] text-text-primary placeholder:text-text-muted outline-none bg-transparent font-medium"
-          />
-          <button
-            onClick={handleVoiceClick}
-            disabled={sending || isTranscribing}
-            className={`text-text-muted transition-colors cursor-pointer flex items-center gap-1.5 ${
-              isRecording
-                ? "text-red-500 hover:text-red-400"
-                : "hover:text-primary"
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            <Mic size={20} strokeWidth={1.7} />
-            {isRecording && (
-              <span className="text-[11px] text-red-500 font-semibold">
-                Recording...
-              </span>
-            )}
-            {isTranscribing && (
-              <span className="text-[11px] text-primary font-semibold">
-                Transcribing...
-              </span>
-            )}
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={sending || !input.trim()}
-            className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white cursor-pointer hover:bg-primary-dark transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {sending ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Send size={16} strokeWidth={2} className="ml-0.5" />
-            )}
-          </button>
+          {(isRecording || isPaused || isTranscribing) ? (
+            // WhatsApp-style Voice Recording UI
+            <div className="flex-1 flex items-center justify-between">
+              {/* Left Side: Discard and Duration */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={cancelRecording}
+                  disabled={isTranscribing || sending}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Discard recording"
+                >
+                  <Trash2 size={18} strokeWidth={1.8} />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full bg-red-500 ${
+                      isRecording && !isPaused ? "animate-pulse" : ""
+                    }`}
+                  />
+                  <span className="text-[13px] font-semibold text-text-primary tabular-nums">
+                    {Math.floor(recordingDuration / 60)
+                      .toString()
+                      .padStart(2, "0")}
+                    :
+                    {(recordingDuration % 60).toString().padStart(2, "0")}
+                  </span>
+                  {isTranscribing && (
+                    <span className="text-[11px] text-primary font-semibold ml-2">
+                      Transcribing...
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Side: Pause/Resume and Send */}
+              <div className="flex items-center gap-2">
+                {!isTranscribing && !sending && (
+                  <button
+                    onClick={isPaused ? resumeRecording : pauseRecording}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                    title={isPaused ? "Resume recording" : "Pause recording"}
+                  >
+                    {isPaused ? (
+                      <Mic size={18} strokeWidth={1.8} />
+                    ) : (
+                      <Pause size={18} strokeWidth={1.8} fill="currentColor" />
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={handleVoiceClick}
+                  disabled={sending || isTranscribing}
+                  className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white cursor-pointer hover:bg-primary-dark transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Send voice message"
+                >
+                  {sending || isTranscribing ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Send size={16} strokeWidth={2} className="ml-0.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Standard Text Input UI
+            <>
+              <button className="text-text-muted hover:text-primary transition-colors cursor-pointer">
+                <Paperclip size={20} strokeWidth={1.7} />
+              </button>
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                className="flex-1 text-[13px] text-text-primary placeholder:text-text-muted outline-none bg-transparent font-medium"
+              />
+              {input.trim() ? (
+                <button
+                  onClick={handleSend}
+                  disabled={sending}
+                  className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white cursor-pointer hover:bg-primary-dark transition-colors shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Send size={16} strokeWidth={2} className="ml-0.5" />
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleVoiceClick}
+                  className="text-text-muted hover:text-primary transition-colors cursor-pointer w-9 h-9 flex items-center justify-center rounded-xl hover:bg-black/5"
+                >
+                  <Mic size={20} strokeWidth={1.7} />
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
