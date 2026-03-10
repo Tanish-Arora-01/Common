@@ -43,6 +43,28 @@ export const useAudioPlayer = (audioUrl) => {
     };
   }, [audioUrl]);
 
+  // Smooth time tracking using requestAnimationFrame
+  useEffect(() => {
+    let animationFrameId;
+    
+    const updateTime = () => {
+      if (audioRef.current && isPlaying) {
+        setCurrentTime(audioRef.current.currentTime);
+        animationFrameId = requestAnimationFrame(updateTime);
+      }
+    };
+
+    if (isPlaying) {
+      animationFrameId = requestAnimationFrame(updateTime);
+    }
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isPlaying]);
+
   const play = () => {
     if (audioRef.current) {
       audioRef.current.play();
@@ -54,6 +76,8 @@ export const useAudioPlayer = (audioUrl) => {
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      // Ensure time is perfectly aligned when pausing
+      setCurrentTime(audioRef.current.currentTime);
     }
   };
 
